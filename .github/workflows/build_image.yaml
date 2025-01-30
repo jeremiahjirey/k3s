@@ -7,6 +7,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  ECR_REPOSITORY: amazon-cc-training
 
 jobs:
   build:
@@ -31,11 +32,10 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: 78741484408.dkr.ecr.us-east-1.amazonaws.com
-          ECR_REPOSITORY: amazon-cc-training
-          IMAGE_TAG: showip-nodejs-latest 
+          WORKER_IMAGE_TAG: showip-nodejs-latest 
         run: |
-          docker build -t $ECR_REGISTRY/$ECR__REPOSITORY:$IMAGE_TAG --build-arg aws_region=${{ env.AWS_REGION }} --build-arg copy_or_mount="copy" -f woker/Dockerfile ./worker
-          docker push $ECR_REGISTRY/$ECR__REPOSITORY:$IMAGE_TAG
+          docker build -t $ECR_REGISTRY/$ECR__REPOSITORY:$WORKER_IMAGE_TAG --build-arg aws_region=${{ env.AWS_REGION }} --build-arg copy_or_mount="copy" -f worker/Dockerfile ./worker
+          docker push $ECR_REGISTRY/$ECR__REPOSITORY:$WORKER_IMAGE_TAG
 
 
         
