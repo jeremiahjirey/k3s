@@ -187,6 +187,23 @@ Resources:
         - Key: Name
           Value: AllTrfacit-SecurityGroup
 
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateData:
+        ImageId: ami-09115b7bffbe3c5e4
+        InstanceType: t2.large
+        SecurityGroupIds: 
+          - !Ref LbSecurityGroup
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            sudo yum update -y
+            sudo yum insttall docker -y
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            echo ECS_CLUSTER=worker-cluster  >> /etc/ecs/ecs.config
+
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:  
@@ -204,22 +221,50 @@ Resources:
   ECRRepository:
     Type: AWS::ECR::Repository
     Properties:
-       RepositoryName: showip-image-repo
+       RepositoryName: cc-repository
        ImageTagMutability: MUTABLE
        EncryptionConfiguration: 
          EncryptionType: AES256
        Tags:
          - Key: Name
-          Value: Showip-Image
+           Value: cc-repository
 
 #ECS
-  EcsCluster:
-    Type: "AWS::ECS::Cluster"
-    Properties: 
-      CapacityProviders: 
+    EcsCluster:
+      Type: "AWS::ECS::Cluster"
+      Properties: 
+        CapacityProviders: 
+          - EC2
+        ClusterName: worker-cluster
+        Configuration:
+          ExecuteCommandConfiguration:
+            Logging: DEFAULT
+
+    TaskDefinition: 
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      Family: amazon-cc
+      Cpu: 1024
+      Memory: 2048
+      NetworkMode: host
+      RequiresCompatibilities:
         - EC2
-      ClusterName: amazon-training-25
-      Configuration:
-        ExecuteCommandConfiguration:
-          Logging: DEFAULT
- 
+      ExecutionRoleArn: arn:aws:iam::378741484408:role/LabRole 
+      ContainerDefinitions:
+        - Name: worker-service #service name
+          Cpu: 1024
+          Memory: 2048
+          Image: 378741484408.dkr.ecr.us-east-1.amazonaws.com/worker-showip:worker-nodejs-latest
+          PortMappings:
+            - ContainerPort: 5000
+              HostPort: 5000 
+              appprotocol: http
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              mode: non-blocking
+              max-buffer-size: 25m
+              awslogs-group: /ecs/
+              awslogs-region: us-east-1
+              awslogs-stream-prefix: ecs
+  
