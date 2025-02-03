@@ -178,7 +178,7 @@ Resources:
       GroupName: SG-ALL-Trafict
       GroupDescription: All Trafict Seucrity
       VpcId: !Ref VPC 
-      SecurityGroupIngres:
+      SecurityGroupIngress:
         - IpProtocol: -1
           FromPort: 0
           ToPort: 0
@@ -193,7 +193,7 @@ Resources:
       LaunchTemplateName: worker-launchtemplate-1.0
       VersionDescription: Initial version
       LaunchTemplateData:
-        ImageId: ami-09115b7bffbe3c5e4
+        ImageId: ami-0c614dee691cbbf37
         InstanceType: t2.large
         IamInstanceProfile:
           Arn: arn:aws:iam::996958409310:instance-profile/LabInstanceProfile
@@ -201,21 +201,43 @@ Resources:
           - !Ref AllTrafictSG
         UserData:
           Fn::Base64: !Sub |
-            #!/bin/bash -xe
+           #!/bin/bash -xe
             sudo yum update -y
-            sudo yum insttall docker -y
+            sudo yum install -y docker ecs-init
             sudo systemctl enable docker
             sudo systemctl start docker
-            echo ECS_CLUSTER=worker-cluster  >> /etc/ecs/ecs.config
+            sudo systemctl enable ecs
+            sudo systemctl start ecs
+            echo ECS_CLUSTER=worker-cluster >> /etc/ecs/ecs.config
+            sudo systemctl restart ecs 
+  
+  TargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetType: instance
+      Port: 5000
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !Ref VPC
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 0
+  
+
 
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:  
       Scheme: internet-facing
       Subnets:
-        - !Ref subnet-0423bb203e215139d
-        - !Ref subnet-01ec2cde1075aa2d2
-        - !Ref subnet-0512e0f2b07fe8e4d
+        - subnet-0459fd3245af52898
+        - subnet-064181041239139aa
+        - subnet-00131b164b4854b5b
       SecurityGroups:
         - !Ref AllTrafictSG
       Tags:
@@ -237,7 +259,7 @@ Resources:
     TaskDefinition: 
       Type: "AWS::ECS::TaskDefinition"
       Properties:
-        Family: amazon-cc
+        Family: amazon-cc-25
         Cpu: 1024 #cpu task
         Memory: 2048 #memory task
         NetworkMode: host
@@ -246,9 +268,8 @@ Resources:
         TaskRoleArn: arn:aws:iam::996958409310:role/LabRole
         ExecutionRoleArn: arn:aws:iam::996958409310:role/LabRole
         ContainerDefinitions:
-          - Name: showip-container
-            Memory: 2048
-            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:showip-nodejs-latest
+          - Name: showipjs-container
+            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:showip-NodeJs-latest
             Cpu: 1024 #cpu container
             Memory: 2048 #memory container
             PortMappings:
@@ -265,43 +286,7 @@ Resources:
                 awslogs-stream-prefix: ecs
 
 
-    EcsCluster:
-      Type: "AWS::ECS::Cluster"
-      Properties: 
-        CapacityProviders: 
-          - EC2
-        ClusterName: worker-cluster
-        Configuration:
-        ExecuteCommandConfiguration:
-        Logging: DEFAULT
-    
-    ECSAutoScalingGroup:
-      Type: "AWS::AutoScaling::AutoScalingGroup"
-      Properties:
-        AvailabilityZones:
-          - us-east-1a
-          - us-east-1b
-          - us-east-1c
-        VPCZoneIdentifier:
-          - subnet-0accf6f6b933d14e4
-          - subnet-032f787c03e2fc7ae
-          - subnet-08c1c7e710dac8452
-        DesiredCapacity: 3
-        NewInstancesProtectedFromScaleIn: true
-        LaunchTemplate:
-          LaunchTemplateId: !Ref lt-0c5b59f91d24fc881
-          Version: !GetAtt LaunchTemplate.LatestVersionNumber
-        EC2InstanceRoleArn: arn:aws:iam::996958409310:instance-profile/LabInstanceProfile
-        MaxSize: 3
-        MinSize: 2
-        SecurityGroupIds:
-          - !Ref AllTrafictSG
-        Tags:
-          - Key: Name
-            PropagateAtLaunch: true
-            Value: showipserver-apps
-
-   EcsCluster:
+ EcsCluster:
     Type: AWS::ECS::Cluster
     Properties: 
       ClusterName: worker-cluster
@@ -314,13 +299,14 @@ Resources:
         - us-east-1b
         - us-east-1c
       VPCZoneIdentifier:
-        - subnet-0accf6f6b933d14e4
-        - subnet-032f787c03e2fc7ae
-        - subnet-08c1c7e710dac8452
+        - subnet-089233c6318ebe994
+        - subnet-01cb8f63041be7b20
+        - subnet-02e064ccc5f2350d3
       MinSize: 2
       MaxSize: 3
       DesiredCapacity: 3
       NewInstancesProtectedFromScaleIn: true
+      ExecutionRoleArn: arn:aws:iam::996958409310:role/ecsExecutionRole
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
@@ -352,3 +338,39 @@ Resources:
       DefaultCapacityProviderStrategy:
         - CapacityProvider: !Ref EcsCapacityProvider
           Weight: 1
+
+  ECSClusterService:
+    Type: AWS::ECS::Service
+    Properties:
+      AvailabilityZoneRebalancing: ENABLED
+      CapacityProviderStrategy: 
+        - CapacityProvider: !Ref EcsCapacityProvider
+          Weight: 1
+      ServiceName: amazon-cc-25
+      Cluster: !Ref EcsCluster
+      PlacementStrategies:
+        - Type: spread
+          Field: attribute:ecs.availability-zone
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 75
+        MaximumPercent: 200
+      DesiredCount: 2
+      TaskDefinition: arn:aws:ecs:us-east-1:996958409310:task-definition/amazon-cc-25:9
+      LoadBalancers:  
+        - ContainerName: showipjs-container
+          ContainerPort: 5000
+          TargetGroupArn: !Ref TargetGroup
+
+  PublicLoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref TargetGroup
+                Weight: 100
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+        
