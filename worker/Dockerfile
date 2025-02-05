@@ -3,7 +3,7 @@ WORKDIR /app
 RUN apt-get update  && apt-get install -y git
 RUN git clone https://github.com/handipradana/nodejsbasic.git .
 ARG DB_HOST
-ENV DB_HOST=datajadi.cluster-cbhtdrlsxuba.us-east-1.rds.amazonaws.com
+ENV DB_HOST=ecs-database.cv3jwhdbyrbs.us-east-1.rds.amazonaws.com
 ARG DB_USER
 ENV DB_USER=admin
 ARG DB_PASSWORD
