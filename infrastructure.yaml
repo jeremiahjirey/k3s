@@ -187,46 +187,6 @@ Resources:
         - Key: Name
           Value: AllTrfacit-SecurityGroup
 
-  LaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties: 
-      LaunchTemplateName: worker-launchtemplate-1.0
-      VersionDescription: Initial version
-      LaunchTemplateData:
-        ImageId: ami-0c614dee691cbbf37
-        InstanceType: t2.large
-        IamInstanceProfile:
-          Arn: arn:aws:iam::996958409310:instance-profile/LabInstanceProfile
-        SecurityGroupIds: 
-          - !Ref AllTrafictSG
-        UserData:
-          Fn::Base64: !Sub |
-           #!/bin/bash -xe
-            sudo yum update -y
-            sudo yum install -y docker ecs-init
-            sudo systemctl enable docker
-            sudo systemctl start docker
-            sudo systemctl enable ecs
-            sudo systemctl start ecs
-            echo ECS_CLUSTER=worker-cluster >> /etc/ecs/ecs.config
-            sudo systemctl restart ecs 
-  
-  TargetGroup:
-    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
-    Properties:
-      HealthCheckIntervalSeconds: 6
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetType: instance
-      Port: 5000
-      Protocol: HTTP
-      UnhealthyThresholdCount: 10
-      VpcId: !Ref VPC
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: 0
   
 
 
@@ -235,9 +195,9 @@ Resources:
     Properties:  
       Scheme: internet-facing
       Subnets:
-        - subnet-0459fd3245af52898
-        - subnet-064181041239139aa
-        - subnet-00131b164b4854b5b
+        - subnet-08dd0ea1dbdf5148e
+        - subnet-0805b7962610ee18a
+        - subnet-0a3a8e4e4c2fc7177
       SecurityGroups:
         - !Ref AllTrafictSG
       Tags:
@@ -256,88 +216,118 @@ Resources:
            Value: cc-repository
 
 #ECS
-    TaskDefinition: 
-      Type: "AWS::ECS::TaskDefinition"
-      Properties:
-        Family: amazon-cc-25
-        Cpu: 1024 #cpu task
-        Memory: 2048 #memory task
-        NetworkMode: host
-        RequiresCompatibilities:
-          - EC2
-        TaskRoleArn: arn:aws:iam::996958409310:role/LabRole
-        ExecutionRoleArn: arn:aws:iam::996958409310:role/LabRole
-        ContainerDefinitions:
-          - Name: showipjs-container
-            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:showip-NodeJs-latest
-            Cpu: 1024 #cpu container
-            Memory: 2048 #memory container
-            PortMappings:
-              - ContainerPort: 5000
-                HostPort: 5000 
-                appprotocol: http
-            LogConfiguration: #liat di manualnya
-              LogDriver: awslogs
-              Options:
-                mode: non-blocking
-                max-buffer-size: 25m
-                awslogs-group: /ecs/
-                awslogs-region: us-east-1
-                awslogs-stream-prefix: ecs
+      TaskDefinition: 
+        Type: "AWS::ECS::TaskDefinition"
+        Properties:
+          Family: amazon-cc-25
+          Cpu: 1024 #cpu task
+          Memory: 2048 #memory task
+          NetworkMode: host
+          RequiresCompatibilities:
+            - EC2
+          TaskRoleArn: arn:aws:iam::996958409310:role/LabRole
+          ExecutionRoleArn: arn:aws:iam::996958409310:role/LabRole
+          ContainerDefinitions:
+            - Name: showipjs-container
+              Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:showip-nodejs-latest
+              Cpu: 1024 #cpu container
+              Memory: 2048 #memory container
+              PortMappings:
+                - ContainerPort: 5000
+                  HostPort: 5000 
+                  appprotocol: http
+              LogConfiguration: #liat di manualnya
+                LogDriver: awslogs
+                Options:
+                  mode: non-blocking
+                  max-buffer-size: 25m
+                  awslogs-group: /ecs/
+                  awslogs-region: us-east-1
+                  awslogs-stream-prefix: ecs
 
+  EcsCluster:
+      Type: AWS::ECS::Cluster
+      Properties: 
+        ClusterName: amazon-cluster
+        ClusterSettings:
+          - Name: containerInsights
+            Value: enabled
+        ServiceConnectDefaults: 
+          NameSpace: worker-cluster
 
- EcsCluster:
-    Type: AWS::ECS::Cluster
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties: 
-      ClusterName: worker-cluster
-
+      LaunchTemplateName: worker-launchtemplate-1.0
+      VersionDescription: Initial version
+      LaunchTemplateData:
+        ImageId: ami-0c614dee691cbbf37
+        InstanceType: t2.nano
+        KeyName: vockey
+        SecurityGroupIds: 
+          - !Ref AllTrafictSG
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 30
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            sudo yum update && sudo yum install ecs-init -y
+            sudo systemctl enable ecs && systemctl start ecs
+            cd /etc
+            sudo mkdir -p ecs
+            sudo touch ecs.config
+            sudo chmod -R 777 ecs.config
+            echo ECS_CLUSTER=amazon-cluster >> /etc/ecs/ecs.config
+            sudo systemctl restart ecs
+            sudo systemctl status ecs 
+  
   ECSAutoScalingGroup:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties:
-      AvailabilityZones:
-        - us-east-1a
-        - us-east-1b
-        - us-east-1c
-      VPCZoneIdentifier:
-        - subnet-089233c6318ebe994
-        - subnet-01cb8f63041be7b20
-        - subnet-02e064ccc5f2350d3
-      MinSize: 2
-      MaxSize: 3
-      DesiredCapacity: 3
-      NewInstancesProtectedFromScaleIn: true
-      ExecutionRoleArn: arn:aws:iam::996958409310:role/ecsExecutionRole
-      LaunchTemplate:
-        LaunchTemplateId: !Ref LaunchTemplate
-        Version: !GetAtt LaunchTemplate.LatestVersionNumber
-      Tags:
-        - Key: Name
-          PropagateAtLaunch: true
-          Value: showipserver-apps
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        AvailabilityZones:
+          - us-east-1a
+          - us-east-1b
+          - us-east-1c
+        VPCZoneIdentifier:
+          - subnet-011059a42ded7c798
+          - subnet-06a5a43af6e05ceff
+          - subnet-0401538c57210ee0c
+        MinSize: 2
+        MaxSize: 3
+        DesiredCapacity: 3
+        NewInstancesProtectedFromScaleIn: true
+        LaunchTemplate:
+          LaunchTemplateId: !Ref LaunchTemplate
+          Version: !GetAtt LaunchTemplate.LatestVersionNumber
+        Tags:
+          - Key: Name
+            PropagateAtLaunch: true
+            Value: amazon-instance
 
-  EcsCapacityProvider:
-    Type: AWS::ECS::CapacityProvider
-    Properties:
-      Name: EC2CapacityProvider
-      AutoScalingGroupProvider:
-        AutoScalingGroupArn: !Ref ECSAutoScalingGroup
-        ManagedScaling:
-          InstanceWarmupPeriod: 60
-          MinimumScalingStepSize: 1
-          MaximumScalingStepSize: 100
-          Status: ENABLED
-          TargetCapacity: 100
-        ManagedTerminationProtection: ENABLED
+  AsgCapacityProvider:
+      Type: AWS::ECS::CapacityProvider
+      Properties:
+        AutoScalingGroupProvider:
+          AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+          ManagedScaling:
+            Status: ENABLED
+            TargetCapacity: 100
+          ManagedTerminationProtection: DISABLED
 
   CapacityProviderAssociation:
     Type: AWS::ECS::ClusterCapacityProviderAssociations
     Properties:
       Cluster: !Ref EcsCluster
       CapacityProviders:
-        - !Ref EcsCapacityProvider
+        - FARGATE
+        - FARGATE_SPOT
+        - !Ref AsgCapacityProvider
       DefaultCapacityProviderStrategy:
-        - CapacityProvider: !Ref EcsCapacityProvider
+        - CapacityProvider: !Ref AsgCapacityProvider
           Weight: 1
+
 
   ECSClusterService:
     Type: AWS::ECS::Service
@@ -347,7 +337,7 @@ Resources:
         - CapacityProvider: !Ref EcsCapacityProvider
           Weight: 1
       ServiceName: amazon-cc-25
-      Cluster: !Ref EcsCluster
+       Cluster: !Ref ECSCluster
       PlacementStrategies:
         - Type: spread
           Field: attribute:ecs.availability-zone
@@ -355,11 +345,28 @@ Resources:
         MinimumHealthyPercent: 75
         MaximumPercent: 200
       DesiredCount: 2
-      TaskDefinition: arn:aws:ecs:us-east-1:996958409310:task-definition/amazon-cc-25:9
+      TaskDefinition: arn:aws:ecs:us-east-1:996958409310:task-definition/amazon-cc-25:12
       LoadBalancers:  
         - ContainerName: showipjs-container
           ContainerPort: 5000
           TargetGroupArn: !Ref TargetGroup
+
+  TargetGroup:
+      Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+      Properties:
+        HealthCheckIntervalSeconds: 6
+        HealthCheckPath: /
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 5
+        HealthyThresholdCount: 2
+        TargetType: instance
+        Port: 80
+        Protocol: HTTP
+        UnhealthyThresholdCount: 10
+        VpcId: !Ref VPC
+        TargetGroupAttributes:
+          - Key: deregistration_delay.timeout_seconds
+            Value: 0
 
   PublicLoadBalancerListener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
@@ -373,4 +380,155 @@ Resources:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
       Protocol: HTTP
-        
+#SNS 
+
+SNS: 
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: amazon-cc-topic
+      TopicPolicy:
+        Method: basic
+        Publisher: everyone
+        Subscribers: everyone
+Subscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: email
+        TopicArn: !Ref SNS
+        Endpoint: imannueljeremi@gmail.com
+
+Resources:
+  EC2StateChangeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: ec2-cctv
+      Description: Memonitor perubahan status instance EC2.
+      EventPattern:
+        source:
+          - "aws.ec2"
+        detail-type:
+          - "EC2 Instance State-change Notification"
+        detail:
+          state:
+            - pending
+            - running
+            - stopping
+            - stopped
+            - shutting-down
+            - terminated
+      State: ENABLED
+      Targets:
+        - Arn: !Ref SNS
+          Id: "SendToSNS"
+
+  EC2EventBrigde:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: ECS2_STATE_NOTIFICATION
+      Description: Memonitor perubahan status instance EC2.
+      EventPattern: >-
+        {"source":["aws.ec2"],"detail-type":["EC2 Instance State-change Notification"],"detail":{"state":["pending","running","shutting-down","terminated","stopping","stopped"]}}
+      State: ENABLED
+      EventBusName: default
+      Targets:
+        - Id: Id85cc19a7-c015-4213-b8c5-2afff0846948
+          Arn: !Ref SNS
+ 
+ #ECS FARGATE
+ #ECSFargate
+
+TaskDefinition: 
+      Type: "AWS::ECS::TaskDefinition"
+      Properties:
+        Family: fargate
+        Cpu: 1024 #cpu task
+        Memory: 2048 #memory task
+        NetworkMode: awsvpc
+        RequiresCompatibilities:
+          - FARGATE
+        TaskRoleArn: arn:aws:iam::996958409310:role/LabRole
+        ExecutionRoleArn: arn:aws:iam::996958409310:role/LabRole
+        ContainerDefinitions:
+          - Name: fargate-container
+            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:showip-nodejs-latest
+            Cpu: 1024 #cpu container
+            Memory: 2048 #memory container
+            PortMappings:
+              - ContainerPort: 5000
+                HostPort: 5000 
+                appprotocol: http
+            LogConfiguration: #liat di manualnya
+              LogDriver: awslogs
+              Options:
+                mode: non-blocking
+                max-buffer-size: 25m
+                awslogs-group: /ecs/fargate
+                awslogs-create-group: "true"
+                awslogs-region: us-east-1
+                awslogs-stream-prefix: ecs
+  ECSCLuster: 
+      Type: "AWS::ECS::Cluster"
+      Properties:
+        ClusterName: test-cluster-yaml
+        CapacityProviders: 
+          - FARGATE
+        ClusterSettings:
+            - Name: containerInsights
+              Value: enabled
+
+  TargetGroup:
+      Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+      Properties:
+        HealthCheckIntervalSeconds: 6
+        HealthCheckPath: /
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 5
+        HealthyThresholdCount: 2
+        TargetType: ip
+        Port: 80
+        Protocol: HTTP
+        UnhealthyThresholdCount: 10
+        VpcId: !Ref VPC
+        TargetGroupAttributes:
+          - Key: deregistration_delay.timeout_seconds
+            Value: 0
+
+  FargateService:
+      Type: AWS::ECS::Service
+      Properties:
+        ServiceName: fargate-service
+        Cluster: !Ref ECSCLuster
+        DesiredCount: 2
+        LaunchType: FARGATE
+        NetworkConfiguration:
+          AwsvpcConfiguration:
+            AssignPublicIp: ENABLED
+            SecurityGroups:
+              - !Ref AllTrafictSG
+            Subnets:
+              - subnet-011059a42ded7c798
+              - subnet-06a5a43af6e05ceff
+              - subnet-0401538c57210ee0c
+        TaskDefinition: arn:aws:ecs:us-east-1:996958409310:task-definition/fargate:1
+        LoadBalancers:  
+          - ContainerName: fargate-container
+            ContainerPort: 5000
+            TargetGroupArn: !Ref TargetGroup
+
+  PublicLoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref TargetGroup
+                Weight: 100
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+
+
+
+ 
