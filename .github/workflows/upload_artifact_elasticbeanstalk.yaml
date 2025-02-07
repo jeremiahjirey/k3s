@@ -24,14 +24,18 @@ jobs:
     - name: Build ZIP for Deployment
       run: |
         zip -r nodejsbasic.zip . -x "node_modules/*"
-    - name: Verify ZIP Contents
-      run: unzip -l nodejsbasic.zip  # Pastikan file utama ada
 
+    
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
         name: showipjs
         path: showipjs.zip
+
+
+    - name: Verify ZIP Contents
+      run: unzip -l nodejsbasic.zip  # Pastikan file utama ada
+  
 
   deploy:
     needs: build
