@@ -23,7 +23,7 @@ jobs:
       run: zip -r showipjs.zip . -x "node_modules/*"
 
     - name: Verify ZIP Contents
-      run: unzip -l nodejsbasic.zip  # Pastikan file utama ada
+      run: unzip -l showipjs.zip  # Pastikan file utama ada
 
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
