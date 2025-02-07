@@ -133,7 +133,7 @@ Resources:
       SubnetId: !Ref PublicSubnet2
 
   PublicSubnet3RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation"
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet3
@@ -190,7 +190,7 @@ Resources:
   
 
 
-  LoadBalancer:
+  CrudLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:  
       Scheme: internet-facing
@@ -202,7 +202,7 @@ Resources:
         - !Ref AllTrafictSG
       Tags:
         - Key: Name
-          Value: ECS-LoadBalancer
+          Value: CrudLoadBalancer
 #ECR
   ECRRepository:
     Type: AWS::ECR::Repository
@@ -216,10 +216,10 @@ Resources:
            Value: cc-repository
 
 #ECS
-      TaskDefinition: 
+     ShoIpTaskDefinition: 
         Type: "AWS::ECS::TaskDefinition"
         Properties:
-          Family: amazon-cc-25
+          Family: amazon
           Cpu: 1024 #cpu task
           Memory: 2048 #memory task
           NetworkMode: host
@@ -241,7 +241,8 @@ Resources:
                 Options:
                   mode: non-blocking
                   max-buffer-size: 25m
-                  awslogs-group: /ecs/
+                  awslogs-group: /ecs/amazon
+                  awslogs-create-group: "true"
                   awslogs-region: us-east-1
                   awslogs-stream-prefix: ecs
 
@@ -253,7 +254,7 @@ Resources:
           - Name: containerInsights
             Value: enabled
         ServiceConnectDefaults: 
-          NameSpace: worker-cluster
+          NameSpace: amazon-cluster
 
   LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -264,6 +265,8 @@ Resources:
         ImageId: ami-0c614dee691cbbf37
         InstanceType: t2.nano
         KeyName: vockey
+        IamInstanceProfile:
+          Arn: arn:aws:iam::996958409310:instance-profile/LabInstanceProfile
         SecurityGroupIds: 
           - !Ref AllTrafictSG
         BlockDeviceMappings:
@@ -273,15 +276,14 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
-            sudo yum update && sudo yum install ecs-init -y
-            sudo systemctl enable ecs && systemctl start ecs
-            cd /etc
-            sudo mkdir -p ecs
-            sudo touch ecs.config
-            sudo chmod -R 777 ecs.config
-            echo ECS_CLUSTER=amazon-cluster >> /etc/ecs/ecs.config
+            sudo yum update -y
+            sudo yum install ecs-init -y
+            sudo mkdir -p /etc/ecs
+            echo "ECS_CLUSTER=amazon-cluster" | sudo tee /etc/ecs/ecs.config
+            sudo systemctl enable ecs
+            sudo systemctl start ecs
             sudo systemctl restart ecs
-            sudo systemctl status ecs 
+
   
   ECSAutoScalingGroup:
       Type: AWS::AutoScaling::AutoScalingGroup
@@ -382,46 +384,25 @@ Resources:
       Protocol: HTTP
 #SNS 
 
-SNS: 
-    Type: AWS::SNS::Topic
+SNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
     Properties:
-      TopicName: amazon-cc-topic
-      TopicPolicy:
-        Method: basic
-        Publisher: everyone
-        Subscribers: everyone
-Subscription:
-      Type: AWS::SNS::Subscription
-      Properties:
-        Protocol: email
-        TopicArn: !Ref SNS
-        Endpoint: imannueljeremi@gmail.com
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "sns:Publish"
+            Resource: !Ref SNS
+      Topics:
+        - !Ref SNS
 
-Resources:
-  EC2StateChangeRule:
-    Type: AWS::Events::Rule
+  SNSSubscription:
+    Type: AWS::SNS::Subscription
     Properties:
-      Name: ec2-cctv
-      Description: Memonitor perubahan status instance EC2.
-      EventPattern:
-        source:
-          - "aws.ec2"
-        detail-type:
-          - "EC2 Instance State-change Notification"
-        detail:
-          state:
-            - pending
-            - running
-            - stopping
-            - stopped
-            - shutting-down
-            - terminated
-      State: ENABLED
-      Targets:
-        - Arn: !Ref SNS
-          Id: "SendToSNS"
-
-  EC2EventBrigde:
+      Protocol: email
+      TopicArn: !Ref SNS
+      Endpoint: imannueljeremi@gmail.com
+EC2EventBrigde:
     Type: AWS::Events::Rule
     Properties:
       Name: ECS2_STATE_NOTIFICATION
@@ -440,7 +421,7 @@ Resources:
 TaskDefinition: 
       Type: "AWS::ECS::TaskDefinition"
       Properties:
-        Family: fargate
+        Family: nodebasic
         Cpu: 1024 #cpu task
         Memory: 2048 #memory task
         NetworkMode: awsvpc
@@ -449,20 +430,20 @@ TaskDefinition:
         TaskRoleArn: arn:aws:iam::996958409310:role/LabRole
         ExecutionRoleArn: arn:aws:iam::996958409310:role/LabRole
         ContainerDefinitions:
-          - Name: fargate-container
-            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:showip-nodejs-latest
+          - Name: crud-container
+            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:nodebasic-nodejs-latest
             Cpu: 1024 #cpu container
             Memory: 2048 #memory container
             PortMappings:
-              - ContainerPort: 5000
-                HostPort: 5000 
+              - ContainerPort: 8000
+                HostPort: 8000 
                 appprotocol: http
             LogConfiguration: #liat di manualnya
               LogDriver: awslogs
               Options:
                 mode: non-blocking
                 max-buffer-size: 25m
-                awslogs-group: /ecs/fargate
+                awslogs-group: /ecs/nodebasic
                 awslogs-create-group: "true"
                 awslogs-region: us-east-1
                 awslogs-stream-prefix: ecs
@@ -476,7 +457,7 @@ TaskDefinition:
             - Name: containerInsights
               Value: enabled
 
-  TargetGroup:
+  CrudTargetGroup:
       Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
       Properties:
         HealthCheckIntervalSeconds: 6
@@ -493,10 +474,10 @@ TaskDefinition:
           - Key: deregistration_delay.timeout_seconds
             Value: 0
 
-  FargateService:
+  CrudFargateCrudService:
       Type: AWS::ECS::Service
       Properties:
-        ServiceName: fargate-service
+        ServiceName: crud-fargate-service
         Cluster: !Ref ECSCLuster
         DesiredCount: 2
         LaunchType: FARGATE
@@ -509,22 +490,22 @@ TaskDefinition:
               - subnet-011059a42ded7c798
               - subnet-06a5a43af6e05ceff
               - subnet-0401538c57210ee0c
-        TaskDefinition: arn:aws:ecs:us-east-1:996958409310:task-definition/fargate:1
+        TaskDefinition: arn:aws:ecs:us-east-1:996958409310:task-definition/nodebasic:2
         LoadBalancers:  
-          - ContainerName: fargate-container
-            ContainerPort: 5000
-            TargetGroupArn: !Ref TargetGroup
+          - ContainerName: crud-container
+            ContainerPort: 8000
+            TargetGroupArn: !Ref CrudTargetGroup
 
-  PublicLoadBalancerListener:
+  CrudPublicLoadBalancerListener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties:
       DefaultActions:
         - Type: forward
           ForwardConfig:
             TargetGroups:
-              - TargetGroupArn: !Ref TargetGroup
+              - TargetGroupArn: !Ref CrudTargetGroup
                 Weight: 100
-      LoadBalancerArn: !Ref LoadBalancer
+      LoadBalancerArn: !Ref CrudLoadBalancer
       Port: 80
       Protocol: HTTP
 
