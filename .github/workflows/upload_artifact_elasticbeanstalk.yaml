@@ -1,4 +1,4 @@
-name: Redeploy
+name: Update Env
 on:
   push:
     branches:
