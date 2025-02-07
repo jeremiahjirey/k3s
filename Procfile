@@ -1,1 +1,1 @@
-web: pm2-runtime start index.js
+web: node index.js
