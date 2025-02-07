@@ -16,7 +16,9 @@ jobs:
       uses: actions/setup-node@v3
     
     - name: Install dependencies
-      run: npm install
+      run: |
+        npm install
+        npm install -g pm2
 
     - name: Build zip
       run: zip -r showipjs.zip . -x "node_modules/*"
