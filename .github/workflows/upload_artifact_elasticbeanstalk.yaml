@@ -52,7 +52,7 @@ jobs:
     - name: Download build artifact
       uses: actions/download-artifact@v4
       with:
-        name: nodejsbasic
+        name: showipjs
     
     - name: Deploy to Elastic Beanstalk
       env:
