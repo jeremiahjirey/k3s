@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "start": "pm2-runtime start index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+    
   },
   "keywords": [],
   "author": "Wakhid Herri Nurcahyo",
@@ -17,4 +19,6 @@
     "url": "https://github.com/dihkaw/showipserverwithnode/issues"
   },
   "homepage": "https://github.com/dihkaw/showipserverwithnode#readme"
+
+  
 }
