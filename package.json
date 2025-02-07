@@ -3,10 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "pm2-runtime start index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "npm start": "pm2-runtime start index.js"
-    
+    "start": "npm install && npm install -g pm2 && pm2-runtime start index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "Wakhid Herri Nurcahyo",
