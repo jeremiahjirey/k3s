@@ -1,4 +1,4 @@
-name: Redeploy
+name: Deploy to AWS Elastic Beanstalk
 
 on:
   push:
@@ -10,23 +10,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout Repository
       uses: actions/checkout@v3
 
     - name: Set up Node.js
       uses: actions/setup-node@v3
+      with:
+        node-version: '20'
     
     - name: Install dependencies
       run: npm install
 
-    - name: Build zip
-      run: zip -r showipjs.zip . -x "node_modules/*"
+    - name: Build ZIP for Deployment
+      run: |
+        zip -r nodejsbasic.zip . -x "node_modules/*"
+    - name: Verify ZIP Contents
+      run: unzip -l nodejsbasic.zip  # Pastikan file utama ada
 
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
         name: showipjs
         path: showipjs.zip
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download Build Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: showipjs
     
     - name: Configure AWS CLI
       run: |
@@ -35,7 +50,7 @@ jobs:
         aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}
         aws configure set region ${{ secrets.AWS_REGION }}
 
-    - name: Upload to S3
+    - name: Upload ZIP to S3
       run: |
         aws s3 cp showipjs.zip s3://${{ secrets.S3_BUCKET_NAME }}/showipjs.zip
       env:
@@ -44,25 +59,15 @@ jobs:
         AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Download build artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: showipjs
-    
     - name: Deploy to Elastic Beanstalk
       env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          EB_ENV_NAME: ${{ secrets.EB_ENV_NAME }}
-          EB_APP_NAME: ${{ secrets.EB_APP_NAME }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        EB_ENV_NAME: ${{ secrets.EB_ENV_NAME }}
+        EB_APP_NAME: ${{ secrets.EB_APP_NAME }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
       run: |
         VERSION_LABEL="${{ github.sha }}-$(date +%s)"
         aws elasticbeanstalk create-application-version \
@@ -72,4 +77,3 @@ jobs:
         aws elasticbeanstalk update-environment \
           --environment-name ${{ secrets.EB_ENV_NAME }} \
           --version-label $VERSION_LABEL
-      
