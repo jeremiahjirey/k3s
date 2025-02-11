@@ -4,8 +4,13 @@ on:
     branches:
       - main
 
+env:
+  AWS_REGION: us-east-1                 
+  ECR_REPOSITORY: cc-repository
+  
+
 jobs:
-  build: 
+  deploy: 
     runs-on: ubuntu-latest
 
     steps:
@@ -48,33 +53,33 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
+  build:
+    needs: deploy
+    name: Build Image Production
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
 
-  deploy:
-          needs: build
-          runs-on: ubuntu-latest
-      
-          steps:
-          - name: Download build artifact
-            uses: actions/download-artifact@v4
-            with:
-              name: showipjs
-          
-          - name: Deploy to Elastic Beanstalk
-            env:
-                AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-                AWS_REGION: ${{ secrets.AWS_REGION }}
-                EB_ENV_NAME: ${{ secrets.EB_ENV_NAME }}
-                EB_APP_NAME: ${{ secrets.EB_APP_NAME }}
-                S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-            run: |
-              VERSION_LABEL="${{ github.sha }}-$(date +%s)"
-              aws elasticbeanstalk create-application-version \
-                --application-name ${{ secrets.EB_APP_NAME }} \
-                --version-label $VERSION_LABEL \
-                --source-bundle S3Bucket=${{ secrets.S3_BUCKET_NAME }},S3Key=showipjs.zip
-              aws elasticbeanstalk update-environment \
-                --environment-name ${{ secrets.EB_ENV_NAME }} \
-                --version-label $VERSION_LABEL
-            
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}  
+        aws-region: ${{ secrets.AWS_REGION }}
+        
+
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        WORKER_IMAGE_TAG: worker-nodejs-latest
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG --build-arg aws_region=${{ env.AWS_REGION }} --build-arg copy_or_mount="copy" -f worker/Dockerfile ./worker
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG
