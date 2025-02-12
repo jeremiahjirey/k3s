@@ -1,0 +1,39 @@
+{
+    "family": "showip",
+    "containerDefinitions": [
+      {
+        "name": "worker-nodejs",
+        "image": "worker-nodejs-latest",
+        "cpu": 256,
+        "memory": 512,
+        "essential": true,
+        "command": ["node", "index.js"],
+        "portMappings": [
+          {
+            "containerPort": 5000,
+            "hostPort": 80,
+            "protocol": "tcp"
+          }
+        ],
+        "environment": [
+          { "name": "NODE_ENV", "value": "production" },
+          { "name": "PORT", "value": "5000" },
+          { "name": "LOG_LEVEL", "value": "info" },
+          { "name": "MAX_CONNECTIONS", "value": "100" }
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/showip",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "ecs"
+          }
+        }
+      }
+    ],
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["EC2", "FARGATE"],
+    "cpu": "256",
+    "memory": "512"
+  }
+  
