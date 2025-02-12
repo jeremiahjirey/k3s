@@ -7,7 +7,10 @@ on:
 env:
   AWS_REGION: us-east-1                 
   ECR_REPOSITORY: cc-repository
-  
+  ECS_CLUSTER: awseb-Myapppdemo-env-hmagwqvdcc
+  WORKER_TASK_DEFINITION: worker/task-definition.json
+  WORKER_CONTAINER_NAME: nginx-proxy
+
 
 jobs:
   deploy: 
@@ -69,8 +72,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}  
         aws-region: ${{ secrets.AWS_REGION }}
-        
-
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -84,3 +85,48 @@ jobs:
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG --build-arg aws_region=${{ env.AWS_REGION }} --build-arg copy_or_mount="copy" -f worker/Dockerfile ./worker
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG
+
+
+  setup:
+    needs: deploy
+    name: Update Task Definition
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Set Variable
+      id: set-vars
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        WORKER_IMAGE_TAG: worker-nodejs-latest
+      run: |
+        echo "::set-output name=worker_image::$ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG"
+
+    - name: Fill in the new image ID in the Amazon ECS task definition (Worker)
+      id: task-def-worker
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: ${{ env.WORKER_TASK_DEFINITION }}
+        container-name: ${{ env.WORKER_CONTAINER_NAME }}
+        image: ${{ steps.set-vars.outputs.worker_image }}
+
+    - name: Deploy Amazon ECS task definition Worker
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def-worker.outputs.task-definition }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true

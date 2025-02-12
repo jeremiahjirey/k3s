@@ -190,19 +190,19 @@ Resources:
   
 
 
-  CrudLoadBalancer:
+  LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:  
       Scheme: internet-facing
       Subnets:
-        - subnet-08dd0ea1dbdf5148e
-        - subnet-0805b7962610ee18a
-        - subnet-0a3a8e4e4c2fc7177
+        - subnet-0650b493fb5a759a0
+        - subnet-02884d50b10df6e27
+        - subnet-02e7faddd98a96309
       SecurityGroups:
         - !Ref AllTrafictSG
       Tags:
         - Key: Name
-          Value: CrudLoadBalancer
+          Value: AmazonLoadBalancer
 #ECR
   ECRRepository:
     Type: AWS::ECR::Repository
@@ -257,18 +257,17 @@ Resources:
           NameSpace: amazon-cluster
 
   LaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties: 
-      LaunchTemplateName: worker-launchtemplate-1.0
-      VersionDescription: Initial version
+    Type: 'AWS::EC2::LaunchTemplate'
+    DependsOn: EcsCluster
+    Properties:
       LaunchTemplateData:
-        ImageId: ami-0c614dee691cbbf37
-        InstanceType: t2.nano
-        KeyName: vockey
-        IamInstanceProfile:
-          Arn: arn:aws:iam::996958409310:instance-profile/LabInstanceProfile
+        ImageId: ami-085ad6ae776d8f09c
         SecurityGroupIds: 
           - !Ref AllTrafictSG
+        InstanceType: t2.large
+        KeyName: vockey
+        IamInstanceProfile:
+           Arn: arn:aws:iam::257145219782:instance-profile/LabInstanceProfile
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
@@ -276,13 +275,24 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
+            cat <<EOL > ecs.sh
+            #!/bin/bash -xe
+            cd /home/ec2-user
             sudo yum update -y
             sudo yum install ecs-init -y
-            sudo mkdir -p /etc/ecs
-            echo "ECS_CLUSTER=amazon-cluster" | sudo tee /etc/ecs/ecs.config
+            sudo sysctl -w net.ipv4.conf.all.route_localnet=1
+            sudo iptables -t nat -A PREROUTING -p tcp -d 169.254.170.2 --dport 80 -j DNAT --to-destination 127.0.0.1:51679
+            sudo iptables -t nat -A OUTPUT -d 169.254.170.2 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 51679
             sudo systemctl enable ecs
             sudo systemctl start ecs
-            sudo systemctl restart ecs
+            sudo systemctl stop ecs
+            sudo chmod -R 777 /etc/ecs
+            sudo echo "ECS_CLUSTER=amazon-cluster" | sudo tee -a /etc/ecs/ecs.config
+            sudo echo "ECS_ENABLE_CONTAINER_METADATA=true" | sudo tee -a /etc/ecs/ecs.config
+            sudo systemctl start ecs
+            EOL
+            sudo chmod +x ecs.sh
+            sudo bash ecs.sh
 
   
   ECSAutoScalingGroup:
@@ -293,12 +303,12 @@ Resources:
           - us-east-1b
           - us-east-1c
         VPCZoneIdentifier:
-          - subnet-011059a42ded7c798
-          - subnet-06a5a43af6e05ceff
-          - subnet-0401538c57210ee0c
+          - subnet-0d546c403773c18af
+          - subnet-083afee1a7296f7a9
+          - subnet-078c34bb0457536d1
         MinSize: 2
-        MaxSize: 3
-        DesiredCapacity: 3
+        MaxSize: 2
+        DesiredCapacity: 2
         NewInstancesProtectedFromScaleIn: true
         LaunchTemplate:
           LaunchTemplateId: !Ref LaunchTemplate
@@ -306,7 +316,7 @@ Resources:
         Tags:
           - Key: Name
             PropagateAtLaunch: true
-            Value: amazon-instance
+            Value: Cluster-instance
 
   AsgCapacityProvider:
       Type: AWS::ECS::CapacityProvider
@@ -330,10 +340,92 @@ Resources:
         - CapacityProvider: !Ref AsgCapacityProvider
           Weight: 1
 
+ EcsCluster:
+      Type: AWS::ECS::Cluster
+      Properties: 
+        ClusterName: amazon-cluster
+        ClusterSettings:
+          - Name: containerInsights
+            Value: enabled
+        ServiceConnectDefaults: 
+          NameSpace: amazon-cluster
 
-  ECSClusterService:
-    Type: AWS::ECS::Service
+  LaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    DependsOn: EcsCluster
     Properties:
+      LaunchTemplateData:
+        ImageId: ami-04681163a08179f28
+        SecurityGroupIds: 
+          - !Ref AllTrafictSG
+        InstanceType: t2.nano
+        KeyName: vockey
+        IamInstanceProfile:
+          Arn: arn:aws:iam::257145219782:instance-profile/LabInstanceProfile
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 30
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            sudo yum update -y
+            sudo systemctl install ecs-init -y
+            sudo systemctl stop ecs
+            sudo chmod -R 777 /etc/ecs
+            echo "ECS_CLUSTER=amazon-cluster" >> /etc/ecs/ecs.config
+            echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config 
+            sudo systemctl start ecs
+            systemctl status ecs
+
+
+  
+  ECSAutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        AvailabilityZones:
+          - us-east-1a
+          - us-east-1b
+          - us-east-1c
+        VPCZoneIdentifier:
+          - subnet-0d546c403773c18af
+          - subnet-083afee1a7296f7a9
+          - subnet-078c34bb0457536d1
+        MinSize: 2
+        MaxSize: 2
+        DesiredCapacity: 2
+        NewInstancesProtectedFromScaleIn: true
+        LaunchTemplate:
+          LaunchTemplateId: !Ref LaunchTemplate
+          Version: !GetAtt LaunchTemplate.LatestVersionNumber
+        Tags:
+          - Key: Name
+            PropagateAtLaunch: true
+            Value: Cluster-instance
+
+  AsgCapacityProvider:
+      Type: AWS::ECS::CapacityProvider
+      Properties:
+        AutoScalingGroupProvider:
+          AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+          ManagedScaling:
+            Status: ENABLED
+            TargetCapacity: 100
+          ManagedTerminationProtection: ENABLED
+
+  CapacityProviderAssociation:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      Cluster: !Ref EcsCluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+        - !Ref AsgCapacityProvider
+      DefaultCapacityProviderStrategy:
+        - Base: 0
+          Weight: 1
+          CapacityProvider: !Ref CapacityProvider
+
       AvailabilityZoneRebalancing: ENABLED
       CapacityProviderStrategy: 
         - CapacityProvider: !Ref EcsCapacityProvider
@@ -421,17 +513,17 @@ EC2EventBrigde:
 TaskDefinition: 
       Type: "AWS::ECS::TaskDefinition"
       Properties:
-        Family: nodebasic
+        Family: showipApp
         Cpu: 1024 #cpu task
         Memory: 2048 #memory task
         NetworkMode: awsvpc
         RequiresCompatibilities:
           - FARGATE
-        TaskRoleArn: arn:aws:iam::996958409310:role/LabRole
-        ExecutionRoleArn: arn:aws:iam::996958409310:role/LabRole
+        TaskRoleArn: arn:aws:iam::257145219782:role/LabRole
+        ExecutionRoleArn: arn:aws:iam::257145219782:role/LabRole
         ContainerDefinitions:
-          - Name: crud-container
-            Image: 996958409310.dkr.ecr.us-east-1.amazonaws.com/cc-repository:nodebasic-nodejs-latest
+          - Name: showipApp-container
+            Image: 257145219782.dkr.ecr.us-east-1.amazonaws.com/cc-repository:worker-nodejs-latest
             Cpu: 1024 #cpu container
             Memory: 2048 #memory container
             PortMappings:
@@ -443,7 +535,7 @@ TaskDefinition:
               Options:
                 mode: non-blocking
                 max-buffer-size: 25m
-                awslogs-group: /ecs/nodebasic
+                awslogs-group: /ecs/showipApp
                 awslogs-create-group: "true"
                 awslogs-region: us-east-1
                 awslogs-stream-prefix: ecs
