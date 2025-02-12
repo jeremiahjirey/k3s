@@ -24,23 +24,18 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
     
-    - name: Install dependencies
-      run: |
-        npm install
-        npm install -g pm2
-        npm ci
 
     - name: Build zip
-      run: zip -r showipjs.zip . -x "node_modules/*"
+      run: zip -r Dockerrun.zip Dockerrun.aws.json
 
     - name: Verify ZIP Contents
-      run: unzip -l showipjs.zip  # Pastikan file utama ada
+      run: unzip -l Dockerrun.zip  # Pastikan file utama ada
 
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: showipjs
-        path: showipjs.zip
+        name: Dockerrun
+        path: Dockerrun.zip
     
     - name: Configure AWS CLI
       run: |
@@ -51,37 +46,10 @@ jobs:
 
     - name: Upload to S3
       run: |
-        aws s3 cp showipjs.zip s3://${{ secrets.S3_BUCKET_NAME }}/showipjs.zip
+        aws s3 cp Dockerrun.zip s3://${{ secrets.S3_BUCKET_NAME }}/Dockerrun.zip
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
-  build:
-    needs: deploy
-    name: Build Image Production
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}  
-        aws-region: ${{ secrets.AWS_REGION }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        WORKER_IMAGE_TAG: worker-nodejs-latest
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG --build-arg aws_region=${{ env.AWS_REGION }} --build-arg copy_or_mount="copy" -f worker/Dockerfile ./worker
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG
+  
