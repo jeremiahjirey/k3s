@@ -1,23 +1,30 @@
 {
-  "AWSEBDockerrunVersion":2,
-  "volumes": [{
-      "sourceVolume": "showip-data",
-      "mountPoints": "/var/app/current/nodejs"
-  }],
-  "ContainerDefinitions": [{
-      "name": "demo-app",
-      "image": "257145219782.dkr.ecr.us-east-1.amazonaws.com/cc-repository:worker-nodejs-latest"
-      }], 
-      "essential": true,
-      "cpu": 1024,
-      "memory": 2048,
-      "mountPoints":[{
-          "sourceVolume": "showip-data",
-          "containerPath": "/var/app/current/nodejs"
-      }],
-      "portMappings": [{
-          "appProtocol": "HTTP",
-          "containerPort": 5000,
-          "hostPort": 5000
-      }]
+  "AWSEBDockerrunVersion": 2,
+  "volumes": [
+      {
+          "name": "showip-data"
+      }
+  ],
+  "containerDefinitions": [
+      {
+          "name": "demo-app",
+          "image": "257145219782.dkr.ecr.us-east-1.amazonaws.com/cc-repository:worker-nodejs-latest",
+          "essential": true,
+          "cpu": 1024,
+          "memory": 2048,
+          "mountPoints": [
+              {
+                  "sourceVolume": "showip-data",
+                  "containerPath": "/var/app/current/nodejs"
+              }
+          ],
+          "portMappings": [
+              {
+                  "appProtocol": "http",
+                  "containerPort": 5000,
+                  "hostPort": 5000
+              }
+          ]
+      }
+  ]
 }
