@@ -1,39 +1,23 @@
 {
-    "family": "showip",
-    "containerDefinitions": [
-      {
-        "name": "worker-nodejs",
-        "image": "worker-nodejs-latest",
-        "cpu": 256,
-        "memory": 512,
-        "essential": true,
-        "command": ["node", "index.js"],
-        "portMappings": [
-          {
-            "containerPort": 5000,
-            "hostPort": 80,
-            "protocol": "tcp"
-          }
-        ],
-        "environment": [
-          { "name": "NODE_ENV", "value": "production" },
-          { "name": "PORT", "value": "5000" },
-          { "name": "LOG_LEVEL", "value": "info" },
-          { "name": "MAX_CONNECTIONS", "value": "100" }
-        ],
-        "logConfiguration": {
-          "logDriver": "awslogs",
-          "options": {
-            "awslogs-group": "/ecs/showip",
-            "awslogs-region": "us-east-1",
-            "awslogs-stream-prefix": "ecs"
-          }
-        }
-      }
-    ],
-    "networkMode": "awsvpc",
-    "requiresCompatibilities": ["EC2", "FARGATE"],
-    "cpu": "256",
-    "memory": "512"
-  }
-  
+  "AWSEBDockerrunVersion":2,
+  "volumes": [{
+      "sourceVolume": "showip-data",
+      "mountPoints": "/var/app/current/nodejs"
+  }],
+  "ContainerDefinitions": [{
+      "name": "demo-app",
+      "image": "257145219782.dkr.ecr.us-east-1.amazonaws.com/cc-repository:worker-nodejs-latest"
+      }], 
+      "essential": true,
+      "cpu": 1024,
+      "memory": 2048,
+      "mountPoints":[{
+          "sourceVolume": "showip-data",
+          "containerPath": "/var/app/current/nodejs"
+      }],
+      "portMappings": [{
+          "appProtocol": "HTTP",
+          "containerPort": 5000,
+          "hostPort": 5000
+      }]
+}
