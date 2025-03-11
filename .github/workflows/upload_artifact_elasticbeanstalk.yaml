@@ -6,8 +6,8 @@ on:
 
 env:
   AWS_REGION: us-east-1                 
-  ECR_REPOSITORY: cc-repository
-  WORKER_CONTAINER_NAME: nginx-proxy
+  ECR_REPOSITORY: serverless
+
 
 
 jobs:
