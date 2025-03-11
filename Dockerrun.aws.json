@@ -8,7 +8,7 @@
   "containerDefinitions": [
       {
           "name": "demo-app",
-          "image": "257145219782.dkr.ecr.us-east-1.amazonaws.com/cc-repository:worker-nodejs-latest",
+          "image": "966378845968.dkr.ecr.us-east-1.amazonaws.com/cc-repository:crudjs-latest",
           "essential": true,
           "cpu": 1024,
           "memory": 2048,
