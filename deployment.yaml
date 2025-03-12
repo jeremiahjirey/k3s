@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: showip
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: showip
+  template:
+    metadata:
+      labels:
+        app: showip
+    spec:
+      containers:
+      - name: showip
+        image: 762146779104.dkr.ecr.us-east-1.amazonaws.com/serverless:crudjs-latest
