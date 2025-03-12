@@ -69,21 +69,9 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}  
         aws-region: ${{ secrets.AWS_REGION }}
   
-  secret:
-    needs: build
-    name: Create Secret Kubernetes
-    runs-on: ubuntu-latest
-    steps:  
-      - name: Create Secret Env
-        run: |
-          sudo kubectl create secret generic pod-secret \
-            --from-literal=DB_HOST=${{secrets.DB_HOST}} \
-            --from-literal=DB_USER=${{secrets.DB_USER}}  \
-            --from-literal=DB_PASSWORD=${{secrets.DB_PASSWORD}}  \
-            --from-literal=DB_DATABASE=${{secrets.DB_DATABASE}} 
-
+      
   deploy:
-    needs: secret
+    needs: build
     name: Configure Kubernetes
     runs-on: ubuntu-latest
     steps:
@@ -100,6 +88,14 @@ jobs:
           sudo chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
           kubectl version --client
+          - name: Create Secret Env
+          run: |
+            sudo kubectl create secret generic pod-secret \
+              --from-literal=DB_HOST=${{secrets.DB_HOST}} \
+              --from-literal=DB_USER=${{secrets.DB_USER}}  \
+              --from-literal=DB_PASSWORD=${{secrets.DB_PASSWORD}}  \
+              --from-literal=DB_DATABASE=${{secrets.DB_DATABASE}} 
+  
 
       #  Konfigurasi Kubeconfig untuk terhubung ke cluster EKS
       - name: Update Kubeconfig
