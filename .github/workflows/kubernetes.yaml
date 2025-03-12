@@ -1,0 +1,126 @@
+name: CI/CD Kubernetes
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1                 
+  ECR_REPOSITORY: cc-repository
+  WORKER_CONTAINER_NAME: nginx-proxy
+
+
+jobs:
+  upload: 
+    name: Upload Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+    
+
+    - name: Build zip
+      run: zip -r Dockerrun.zip Dockerrun.aws.json
+
+    - name: Verify ZIP Contents
+      run: unzip -l Dockerrun.zip  # Pastikan file utama ada
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Dockerrun
+        path: Dockerrun.zip
+    
+    - name: Configure AWS CLI
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}
+        aws configure set region ${{ secrets.AWS_REGION }}
+
+    - name: Upload to S3
+      run: |
+        aws s3 cp Dockerrun.zip s3://${{ secrets.S3_BUCKET_NAME }}/Dockerrun.zip
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+
+
+  build:
+    needs: upload
+    name: Build Push Image 
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}  
+        aws-region: ${{ secrets.AWS_REGION }}
+  
+  secret:
+    needs: build
+    name: Create Secret Kubernetes
+    runs-on: ubuntu-latest
+    steps:  
+      - name: Create Secret Env
+        run: |
+          sudo kubectl create secret generic pod-secret \
+            --from-literal=DB_HOST=${{secrets.DB_HOST}} \
+            --from-literal=DB_USER=${{secrets.DB_USER}}  \
+            --from-literal=DB_PASSWORD=${{secrets.DB_PASSWORD}}  \
+            --from-literal=DB_DATABASE=${{secrets.DB_DATABASE}} 
+
+  deploy:
+    needs: secret
+    name: Configure Kubernetes
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install kubectl
+        run: |
+          sudo yum update
+          sudo yum install docker -y
+          sudo curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.31.3/2024-12-12/bin/linux/amd64/kubectl
+          sudo chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kubectl version --client
+
+      #  Konfigurasi Kubeconfig untuk terhubung ke cluster EKS
+      - name: Update Kubeconfig
+        run:  sudo aws eks update-kubeconfig --region us-east-1 --name multi-pods 
+
+      # Check node worker
+      - name: Checking Node
+        run: sudo kubectl get nodes
+
+      #  Deploy Pod ke Kubernetes
+      - name: Deploy Pod to EKS
+        run: sudo kubectl apply -f deployment.yaml  
+
+      #  Verifikasi Deployment
+      - name: Check Running Pods
+        run: kubectl get pods 
+
+      # Create load balancer
+      - name: Create ALB
+        run: sudo kubectl apply -f service.yaml
+
+      # Check ALB
+      - name: Check ALB
+        run: sudo kubectl get svc showip-service

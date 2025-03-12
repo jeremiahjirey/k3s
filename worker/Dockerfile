@@ -1,9 +1,9 @@
 FROM node:latest
+RUN apt-get update && apt-get install -y git
 WORKDIR /app
-RUN apt-get update  && apt-get install -y git
-RUN git clone https://github.com/handipradana/nodejsbasic.git .
-RUN npm install --prefix
+RUN git clone https://github.com/dihkaw/showipserverwithnodejs.git .
+RUN ls -la /app
+RUN npm install
 RUN npm install -g pm2
-EXPOSE 8000
-CMD ["pm2-runtime", "npm", "--", "run", "start-prod"]
-
+EXPOSE 5000
+CMD ["pm2-runtime", "index.js"]
