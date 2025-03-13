@@ -7,7 +7,7 @@ on:
 env:
   AWS_REGION: us-east-1                 
   ECR_REPOSITORY: cc-repository
-  WORKER_CONTAINER_NAME: nginx-proxy
+
 
 
 jobs:
@@ -80,6 +80,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - name: Install kubectl
         run: |
           sudo apt update
@@ -98,9 +101,30 @@ jobs:
           sudo aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}  
           sudo aws eks update-kubeconfig --region us-east-1 --name multi-pods 
 
-     
+      - name: Create Secret Env
+        run: |
+            sudo kubectl create secret generic rds-secret \
+              --from-literal=DB_HOST=${{secrets.DB_HOST}} \
+              --from-literal=DB_USER=${{secrets.DB_USER}}  \
+              --from-literal=DB_PASSWORD=${{secrets.DB_PASSWORD}}  \
+              --from-literal=DB_DATABASE=${{secrets.DB_DATABASE}} 
   
       # Check node worker
       - name: Checking Node
-        run: ls -R
-      
+        run: sudo kubectl get nodes
+
+      #  Deploy Pod ke Kubernetes
+      - name: Deploy Pod to EKS
+        run: sudo kubectl apply -f  worker/deployment.yaml
+
+      #  Verifikasi Deployment
+      - name: Check Running Pods
+        run: kubectl get pods 
+
+      # Create load balancer
+      - name: Create ALB
+        run: sudo kubectl apply -f worker/service.yaml
+
+      # Check ALB
+      - name: Check ALB
+        run: sudo kubectl get svc showip-service
