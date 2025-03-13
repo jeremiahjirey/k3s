@@ -130,3 +130,5 @@ dist
 .pnp.*
 service2.yaml
 deloyment2.yaml
+infrastructure.yaml
+secret
