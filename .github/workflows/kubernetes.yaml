@@ -98,24 +98,9 @@ jobs:
           sudo aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}  
           sudo aws eks update-kubeconfig --region us-east-1 --name multi-pods 
 
-      
+     
   
       # Check node worker
       - name: Checking Node
-        run: sudo kubectl get nodes
-
-      #  Deploy Pod ke Kubernetes
-      - name: Deploy Pod to EKS
-        run: sudo kubectl apply -f  worker/deployment.yaml
-
-      #  Verifikasi Deployment
-      - name: Check Running Pods
-        run: kubectl get pods 
-
-      # Create load balancer
-      - name: Create ALB
-        run: sudo kubectl apply -f service.yaml
-
-      # Check ALB
-      - name: Check ALB
-        run: sudo kubectl get svc worker/showip-service
+        run: ls -R
+      
