@@ -84,13 +84,19 @@ jobs:
         run: |
           sudo apt update
           sudo curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.31.3/2024-12-12/bin/linux/amd64/kubectl
-          sudo chmod +x kubectl
+          sudo chmod +x kubectlz
           sudo mv kubectl /usr/local/bin/
           kubectl version --client
 
-      #  Konfigurasi Kubeconfig untuk terhubung ke cluster EKS
+        #  Konfigurasi Kubeconfig untuk terhubung ke cluster EKS
       - name: Update Kubeconfig
-        run:  sudo aws eks update-kubeconfig --region us-east-1 --name multi-pods 
+        run:  |
+        sudo aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        sudo aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        sudo aws configure set region ${{ secrets.AWS_REGION }}
+        sudo aws configure set output_format json
+        sudo aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}  
+        sudo aws eks update-kubeconfig --region us-east-1 --name multi-pods 
 
       - name: Create Secret Env
         run: |
