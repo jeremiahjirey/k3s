@@ -113,7 +113,7 @@ jobs:
 
       #  Verifikasi Deployment
       - name: Check Running Pods
-        run: kubectl get pods 
+        run: sudo kubectl get pods 
 
       # Create load balancer
       - name: Create ALB
