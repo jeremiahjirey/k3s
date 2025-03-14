@@ -69,7 +69,7 @@ jobs:
 
       - name: Create Secret Env
         run: |
-            sudo kubectl create secret generic pod-secret \
+            sudo kubectl create secret generic fargate-secret \
               --from-literal=DB_HOST=${{secrets.DB_HOST}} \
               --from-literal=DB_USER=${{secrets.DB_USER}}  \
               --from-literal=DB_PASSWORD=${{secrets.DB_PASSWORD}}  \
@@ -89,4 +89,4 @@ jobs:
 
       # Check ALB
       - name: Check ALB
-        run: sudo kubectl get svc nodejs-service
+        run: sudo kubectl get service
