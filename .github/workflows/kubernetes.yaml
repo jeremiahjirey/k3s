@@ -40,4 +40,53 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$WORKER_IMAGE_TAG
   
       
+  deploy:
+    needs: build
+    name: Configure Kubernetes
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install kubectl
+        run: |
+          sudo apt update
+          sudo curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.31.3/2024-12-12/bin/linux/amd64/kubectl
+          sudo chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kubectl version --client
+
+        #  Konfigurasi Kubeconfig untuk terhubung ke cluster EKS
+      - name: Update Kubeconfig
+        run:  |
+          sudo aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          sudo aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          sudo aws configure set region ${{ secrets.AWS_REGION }}
+          sudo aws configure set output_format json
+          sudo aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}  
+          sudo aws eks update-kubeconfig --region us-east-1 --name development
+
+      - name: Create Secret Env
+        run: |
+            sudo kubectl create secret generic pod-secret \
+              --from-literal=DB_HOST=${{secrets.DB_HOST}} \
+              --from-literal=DB_USER=${{secrets.DB_USER}}  \
+              --from-literal=DB_PASSWORD=${{secrets.DB_PASSWORD}}  \
+              --from-literal=DB_DATABASE=${{secrets.DB_DATABASE}} 
   
+      # Check node worker
+      - name: Checking Node
+        run: sudo kubectl get nodes
+
+      #  Deploy Pod ke Kubernetes
+      - name: Deploy Pod to EKS
+        run: sudo kubectl apply -f  worker/fargate-pods.yaml
+
+      #  Verifikasi Deployment
+      - name: Check Running Pods
+        run: sudo kubectl get pods 
+
+      # Check ALB
+      - name: Check ALB
+        run: sudo kubectl get svc nodejs-service
