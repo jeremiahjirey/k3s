@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pod-1
+  template:
+    metadata:
+      labels:
+        app: pod-1
+    spec:
+      containers:
+      - name: pod-1
+        image: 762146779104.dkr.ecr.us-east-1.amazonaws.com/serverless:crudjs-latest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: showip-service
+spec:
+  type: ClusterIP
+  selector:
+    app: pod-1 
+  ports:
+    - protocol: TCP
+      port: 80       
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pod-alb-ingress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "instance"
+    alb.ingress.kubernetes.io/ip-address-type: "ipv4"    
+    alb.ingress.kubernetes.io/group.name: "app-group"
+spec:
+  ingressClassName: alb  
+  rules:
+    - host: showip.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: showip-service
+                port:
+                  number: 80  
+

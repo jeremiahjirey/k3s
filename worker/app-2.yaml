@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pod-2
+  name: pod
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: pod-2
+      app: pod
   template:
     metadata:
       labels:
-        app: pod-2
+        app: pod
     spec:
       containers:
       - name: pod-2
@@ -36,3 +36,16 @@ spec:
             secretKeyRef:
               name: pod-secret
               key: DB_DATABASE
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodejs-service
+spec:
+  type: LoadBalancer  
+  selector:
+    app: pod-2
+  ports:
+    - protocol: TCP
+      port: 80       
+      targetPort: 8000
