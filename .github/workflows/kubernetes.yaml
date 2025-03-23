@@ -6,7 +6,7 @@ on:
 
 env:
   AWS_REGION: us-east-1                 
-  ECR_REPOSITORY: lks-ecr-imannuel
+  ECR_REPOSITORY: k3s-repository
 
 
 

@@ -1,22 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fargate-pods
-  namespace: app
+  name: fargate-pods # deployment name
+  namespace: dev # namespace on fargate-profile
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: app
+      app: fargate-pods # match label
   template:
     metadata:
       labels:
-        app: app
+        app: fargate-pods # match label
     spec:
-      nodeSelector:
-        eks.amazonaws.com/fargate-profile: demo-fargate
-      containers:
-        - name: fargate-app
+        - name: fargate-pods
           image: 567891620707.dkr.ecr.us-east-1.amazonaws.com/lks-ecr-imannuel:showip-latest
           ports:
             - containerPort: 5000
